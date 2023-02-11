@@ -1,7 +1,7 @@
 package com.harunuyan.retrofitcryptoapp.service
 
 import com.harunuyan.retrofitcryptoapp.model.CryptoModel
-import retrofit2.Call
+import io.reactivex.Observable
 import retrofit2.http.GET
 
 interface CryptoAPI {
@@ -16,6 +16,10 @@ interface CryptoAPI {
 
     // Verileri internetten indirirken UI bloklamadan arkaplanda yapılacak işlem fonksiyonu.
     // getData çağırıldığında call yapılacak ve geri dönen veri fazla olduğundan bize liste içerisinde verilecek.
-fun getData(): Call<List<CryptoModel>>
+//fun getData(): Call<List<CryptoModel>>
+
+    // RXJAva
+    // Gözlemlenebilir obje. Veriler geldiğinde alır ve yayın yapar.
+    fun getData(): Observable<CryptoModel>
 
 }

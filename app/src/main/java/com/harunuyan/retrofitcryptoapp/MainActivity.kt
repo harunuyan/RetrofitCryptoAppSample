@@ -1,7 +1,6 @@
 package com.harunuyan.retrofitcryptoapp
 
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -10,10 +9,12 @@ import com.harunuyan.retrofitcryptoapp.adapter.RecyclerViewAdapter
 import com.harunuyan.retrofitcryptoapp.databinding.ActivityMainBinding
 import com.harunuyan.retrofitcryptoapp.model.CryptoModel
 import com.harunuyan.retrofitcryptoapp.service.CryptoAPI
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.functions.Consumer
+import io.reactivex.schedulers.Schedulers
 import retrofit2.Retrofit
+import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
 import retrofit2.converter.gson.GsonConverterFactory
 
 class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener {
@@ -26,6 +27,9 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener {
     //Adapter oluşturmak
     private var recyclerViewAdapter: RecyclerViewAdapter? = null
 
+    // Disposable: Tek kullanımlık. Activity, Fragment kapatıldığında call'ları siler.
+    private var compositeDisposable: CompositeDisposable? = null // Farklı disposable'ları buraya koyup hepsinden bir kere de kurtulmamızı sağlar.
+
     private lateinit var binding: ActivityMainBinding
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,9 +37,14 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener {
         setContentView(binding.root)
 
 
+        compositeDisposable = CompositeDisposable()
+
         // RecyclerView
         val layoutManager: RecyclerView.LayoutManager = LinearLayoutManager(this)
         binding.recyclerView.layoutManager = layoutManager
+
+
+
 
         loadData()
 
@@ -45,19 +54,25 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener {
     private fun loadData() {
 
         // Retrofit objesi tanımlanır.
-        //BaseURL verilir.
-        //GsonConverter verilir.
+        // BaseURL verilir.
+        // GsonConverter verilir.
         val retrofit = Retrofit.Builder()
             .baseUrl(BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())
-            .build()
+            .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+            .build().create(CryptoAPI::class.java)
 
-        // API ile retrofiti bağlayan bir service oluşturulur.
-        val service = retrofit.create(CryptoAPI::class.java)
+        compositeDisposable?.add(
+            retrofit.getData().subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread()).subscribe(this::handleResponse)
+        )
+
 
         // Service içerisinde Call dan extend alan fonksiyonumuzu çağırırız.
+        /*
+        // API ile retrofiti bağlayan bir service oluşturulur.
+        val service = retrofit.create(CryptoAPI::class.java)
         val call = service.getData()
-
         // Senkronize bir şekilde verileri almak için
         // CallBack ister ve object olarak tanımlarız. Lambda.
         call.enqueue(object : Callback<List<CryptoModel>> {
@@ -78,11 +93,11 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener {
                             binding.recyclerView.adapter = recyclerViewAdapter
                         }
 
-                        /*for (cryptoModel: CryptoModel in cryptoModels!!) {
+                        for (cryptoModel: CryptoModel in cryptoModels!!) {
                             Log.e("DENEME", cryptoModel.name)
                             Log.e("DENEME", cryptoModel.asset_id)
                             cryptoModel.price_usd?.let { it1 -> Log.e("DENEME", it1) }
-                        }*/
+                        }
                     }
                 }
             }
@@ -92,8 +107,24 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener {
                 t.printStackTrace()
             }
 
-        })
+        })*/
 
+    }
+
+    private fun handleResponse(cryptoList: List<CryptoModel>) {
+
+        cryptoModels = ArrayList(cryptoList)
+
+        cryptoModels?.let {
+            recyclerViewAdapter = RecyclerViewAdapter(it, this@MainActivity)
+            binding.recyclerView.adapter = recyclerViewAdapter
+        }
+
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+
+        compositeDisposable?.clear()
     }
 
     override fun onItemClick(cryptoModel: CryptoModel) {
